@@ -1,0 +1,167 @@
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{lmodern}
+\usepackage[margin=2.6cm]{geometry}
+\usepackage{microtype}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{array}
+\usepackage{enumitem}
+\usepackage[hidelinks]{hyperref}
+
+\newcommand{\code}[1]{\texttt{#1}}
+\newcommand{\Eq}[1]{\mathrm{Eq}#1}
+\newcommand{\Z}{\mathbb{Z}}
+
+\title{Settling the unconfirmed implications\\of the order-3 exploration: findings}
+\date{23 October 2026}
+
+\begin{document}
+\maketitle
+
+\section{Starting point}
+
+The fourth exploration of the 149 representatives of the ETP laws of order at most three
+(\code{results/order3\_vampire\_mace4\_etp\_refutations\_duals\_asked}) left
+93 implications \emph{unconfirmed} (60 up to duality) and 5 \emph{open questions},
+with 1,652 laws in their conclusions that no prover had derived. Vampire, Prover9, Twee and
+Mace4 had failed on them with limits of up to a minute, and on single questions of up to 30 minutes.
+Unconfirmed implications steer the enumeration, so each false one makes the theory after its
+question unreliable.
+
+Four ways of settling them were tried: a further prover (E), the log of the running exploration
+over all 1432 ETP equivalence classes, linear magmas, and translation-invariant magmas.
+
+\section{Summary of results}
+
+\begin{center}
+\begin{tabularx}{\textwidth}{@{}l>{\raggedright}X>{\raggedright}p{4.3cm}>{\raggedright\arraybackslash}p{2.3cm}@{}}
+\toprule
+Question & Claim (non-trivial premise laws) & Refuted by & Status \\
+\midrule
+82  & $\Eq{3}$, $\Eq{75}$, $\Eq{271}$ $\to$ $x = y$ and 133 more laws & $x * y = 13x + 7y$ on $\Z/19$ & checked on the table \\
+135 & dual of question 82 & $x * y = 7x + 13y$ on $\Z/19$ & checked on the table \\
+171 & $\Eq{3}$, $\Eq{49}$, $\Eq{260}$ $\to$ $\Eq{10}$, $\Eq{378}$ and 16 more laws & translation-invariant magma of size 13 & checked on the table \\
+153 & $\Eq{3}$, $\Eq{55}$, $\Eq{105}$, $\Eq{209}$, $\Eq{264}$ $\to$ 60 laws & free magma, by E's saturation & not certified \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+Three unconfirmed implications (four with the dual) are thus false, three of them with finite
+counterexamples whose tables can be checked independently. The other 89 unconfirmed implications
+and the 5 open questions remain undecided. Since question 82 was accepted as unconfirmed and steered
+the enumeration from then on, the exploration has to be resumed at question~82.
+
+\section{The E prover}
+
+Each law of the conclusion of each unconfirmed implication and open question was posed to
+E~3.5.1 on its own, with the premise as axioms, a law and its dual under the dual premise being posed
+once: 1,087 problems. With 2 seconds and with 60 seconds per problem (\code{-{}-auto-schedule}), the
+outcome was the same: no law was proved, E gave up on 847, and reported 240 as CounterSatisfiable.
+Of these, 180 belong to the open questions (with duals), where E agrees with Vampire.
+
+The other 60 are the whole conclusion of question~153, whose premise
+\begin{gather*}
+\Eq{1}, \Eq{3}, \Eq{8}, \Eq{23}, \Eq{47}, \Eq{55}, \Eq{99}, \Eq{105}, \Eq{151},\\
+\Eq{203}, \Eq{209}, \Eq{255}, \Eq{264}, \Eq{307}, \Eq{326}, \Eq{359}, \Eq{375}
+\end{gather*}
+amounts to idempotence ($x = x * x$) together with
+$\Eq{55}\colon x = x * (y * (y * x))$, $\Eq{105}\colon x = x * ((y * x) * y)$,
+$\Eq{209}\colon x = (x * (y * x)) * y$ and $\Eq{264}\colon x = ((x * y) * y) * y$.
+E saturates it within half a second for each law, with \code{-{}-auto-schedule} and with
+\code{-{}-auto}. If the saturation is correct, none of the 60 laws is derivable, and the free magma
+over the premise refutes the implication; Vampire, given one second per law of the free magma's row,
+had decided none of them.
+
+\paragraph{Caveats.} This is not a proof. E prints the saturated clause set but no certificate of
+its saturation, and the set contains equations that the term order cannot orient, such as
+$(x * y) * y = x * (y * x)$, so the Knuth--Bendix check of \code{completion.py}, which needs every
+rule to decrease, does not apply. The evidence is of the same kind as Vampire's saturation, which the
+exploration already trusts for its free magmas. No finite counterexample is known: an exhaustive
+Z3 search found no magma of size at most 7 that satisfies the premise and violates a law of the
+conclusion, and none of the searches below found one.
+
+\section{The exploration over all ETP equivalence classes}
+
+The log of the exploration over all 1432 ETP equivalence classes (Vampire expert, still running)
+was checked against the 98 questions: its 657 confirmed implications, the laws proved within its
+unconfirmed answers and the duals of both, closed under the ETP implication graph; its 654 finite
+counterexamples and their duals, evaluated on the order-3 laws; and its 14 free magmas and their
+duals, transferred through the ETP graph. None of the questions is settled, and the same closure
+reproves none of the 767 confirmed implications of the order-3 run. The reason is that the two
+explorations have not met: none of the 1,366 premises asked so far contains a law of order at most
+three besides $x = x$; they consist of laws numbered 4284 and above. In the lectic order, premises
+with these laws come late.
+
+\section{Linear magmas}
+
+A linear magma is $x * y = a x + b y + c$ over $\Z/n$, or $x * y = A x + B y$ over $(\Z/p)^2$ with
+$2 \times 2$ matrices $A$ and $B$. Every term is then a linear form in its variables, and a law holds
+exactly when its two sides have the same coefficients, so each magma is decided on all 149 laws
+without its table. All moduli $n < 130$ (with $c \in \{0, 1\}$) and all matrices over $\Z/2$ and
+$\Z/3$ were tried. They refute two questions:
+
+\begin{itemize}
+  \item question 82, $\Eq{3}, \Eq{75}, \Eq{271} \to x = y, \dots$, with
+        $\Eq{75}\colon x = y * (y * (y * x))$ and $\Eq{271}\colon x = ((y * x) * x) * y$,
+        by $x * y = 13x + 7y$ on $\Z/19$, idempotent since $13 + 7 \equiv 1$;
+        the implication claimed that the premise forces the trivial magma;
+  \item question 135, its dual (asked separately because of \code{-{}-ask-unconfirmed-duals}),
+        by the dual magma $x * y = 7x + 13y$.
+\end{itemize}
+A magma of size 19 is beyond the reach of the expert's model search (Vampire for 10 seconds, Mace4 for
+30 seconds per law).
+
+\section{Translation-invariant magmas}
+
+A translation-invariant magma is $x * y = x + f(y - x)$ on $\Z/n$; the idempotent linear magmas
+over $\Z/n$ are among them. Translations are automorphisms, so a law holds when it holds with its first
+variable~0, and the magma is determined by the $n$ values of $f$ instead of $n^2$ entries. A SAT
+encoding (CaDiCaL through \code{python-sat}) gives the functions $f$ under which the premise holds; each
+is checked against the conclusion and excluded if it satisfies it, up to 200 per size and question.
+The encoding was checked against direct evaluation on 23,840 pairs of random functions and laws.
+
+Up to size~21 for all 98 questions, this refutes question 171,
+$\Eq{3}, \Eq{49}, \Eq{260} \to \Eq{10}, \dots$, with $\Eq{49}\colon x = x * (x * (y * x))$ and
+$\Eq{260}\colon x = ((x * y) * x) * x$, by
+\[
+x * y = x + f(y - x) \bmod 13, \qquad f = (0, 2, 0, 4, 8, 6, 0, 8, 0, 9, 2, 2, 12),
+\]
+which violates all 18 laws of its conclusion, among them $\Eq{10}\colon x = x * (y * x)$ and
+$\Eq{378}\colon x * y = (x * y) * y$. The premise is self-dual, so there is no dual question.
+It also confirms that question~82 has no translation-invariant counterexample smaller than 19.
+For some questions and sizes, the premise has more than 200 translation-invariant models, all
+satisfying the conclusion; there the search is not exhaustive. The search up to size 30 is still
+running.
+
+\section{Consequences and next steps}
+
+\begin{itemize}
+  \item Resume the fourth exploration at question~82, with the three refuting magmas in the context
+        (\code{-{}-context-magmas}); questions 135 and 171 are then refuted as well.
+  \item Decide whether to accept question~153 on E's saturation, or to certify it first, by checking
+        the ground confluence of E's saturated system or by describing the free magma explicitly.
+  \item Further classes of magmas: linear magmas over finite fields $\mathbb{F}_{p^k}$ and with larger
+        matrices; a conflict budget per SAT call to reach larger translation-invariant magmas.
+  \item On the proof side, nothing new was proved: E adds nothing to Vampire, Prover9 and Twee here.
+        Lemmas (the multi-variable consequences of a premise) or Waldmeister remain to be tried.
+  \item Run E and the special magmas on the unconfirmed implications of the exploration over all ETP
+        classes, and consider adding them to the Vampire expert.
+\end{itemize}
+
+\section{Tools}
+
+\begin{itemize}
+  \item \code{eprover\_batch.py}: poses the unproved laws of an exploration's unconfirmed implications
+        and open questions to E, one law at a time, up to duality.
+  \item \code{special\_magmas.py RESULTS\_DIR -{}-equations FILE -o TABLES}: searches linear and
+        translation-invariant magmas for counterexamples, checks each on its table, and writes the refuting
+        tables for \code{-{}-seed-magmas} or \code{-{}-context-magmas}; tested in
+        \path{tests/test_special_magmas.py}.
+\end{itemize}
+Both are in \code{explorations/equational\_theories} and not yet committed.
+
+\end{document}
