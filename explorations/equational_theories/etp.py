@@ -391,6 +391,8 @@ def main(argv: Sequence[str] | None = None) -> None:
                         help="ETP numbers of the laws; their duals are added")
     parser.add_argument("--max-order", type=int, metavar="K",
                         help="choose representatives of the laws of at most K operations; needs --graph")
+    parser.add_argument("--max-variables", type=int, metavar="V",
+                        help="with --max-order, only the laws of at most V variables")
     parser.add_argument("--graph", type=Path, metavar="PATH",
                         help=f"the ETP's graph.json ({GRAPH_URL})")
     parser.add_argument("--semigroup", action="store_true",
@@ -405,12 +407,15 @@ def main(argv: Sequence[str] | None = None) -> None:
         parser.error("--max-order and --graph go together")
     if args.semigroup and args.max_order is None:
         parser.error("--semigroup needs --max-order")
+    if args.max_variables is not None and args.max_order is None:
+        parser.error("--max-variables needs --max-order")
     laws = EtpLaws.load(args.etp_equations)
     if args.max_order is None:
         entries = [{"id": eq.id, "equation": f"{eq.lhs} = {eq.rhs}"} for eq in laws.with_duals(args.numbers)]
     else:
         graph = ImplicationGraph.load(args.graph)
-        numbers = [eq.id for eq in laws.laws if order(eq) <= args.max_order]
+        numbers = [eq.id for eq in laws.laws if order(eq) <= args.max_order
+                   and (args.max_variables is None or len(eq.variables) <= args.max_variables)]
         if args.semigroup:
             numbers = [n for n in numbers if right_associated(laws.law(n))]
         classes = graph.equivalence_classes(numbers)
