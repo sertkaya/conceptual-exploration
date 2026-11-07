@@ -110,7 +110,8 @@ def save_results(
     # Equations are identified by their id, or else by their name or text,
     # and listed in that order.
     position = {eq: k for k, eq in enumerate(equations)}
-    order = lambda eq: (eq.id is None, eq.id or 0, position[eq])
+    # Laws of a free magma's premise may lie outside the equations; they come last.
+    order = lambda eq: (eq.id is None, eq.id or 0, position.get(eq, len(position)))
     ordered = sorted(equations, key=order)
     ident = lambda eq: eq.id if eq.id is not None else eq.name or f"{eq.lhs} = {eq.rhs}"
     label = lambda eq: f"Eq{eq.id}" if eq.id is not None else ident(eq)
@@ -301,6 +302,30 @@ def save_results(
     )
 
 
+def load_free_magmas(path: str | Path, equations: Sequence[Equation]) -> list[PartialObject]:
+    """The free magmas of a file in the format of free_magmas.json, as
+    objects known on their positive and negative laws."""
+    ident = lambda eq: eq.id if eq.id is not None else eq.name or f"{eq.lhs} = {eq.rhs}"
+    by_ident = {ident(eq): eq for eq in equations}
+    entries = json.loads(Path(path).read_text(encoding="utf-8"))
+    unknown = {law for e in entries for law in e["positive"] + e["negative"]} - set(by_ident)
+    if unknown:
+        raise ValueError(f"Laws of {path} not among the equations: {sorted(map(str, unknown))[:5]}")
+
+    def law(name) -> Equation:
+        if name in by_ident:
+            return by_ident[name]
+        if isinstance(name, str) and "=" in name:
+            return Equation.parse(name)
+        raise ValueError(f"Law {name!r} of a premise in {path} is neither among the equations nor an equation")
+
+    return [
+        PartialObject(FreeMagma(frozenset(law(n) for n in e["premise"])),
+                      {by_ident[n] for n in e["positive"]}, {by_ident[n] for n in e["negative"]})
+        for e in entries
+    ]
+
+
 def run_magma_exploration(
     equations_path: str | Path = DEFAULT_EQUATIONS_PATH,
     use_duality_symmetry: bool = True,
@@ -313,6 +338,7 @@ def run_magma_exploration(
     background_transient_order: int | None = None,
     seed_magmas: Sequence[str | Path] = (),
     seed_context: Sequence[str | Path] = (),
+    seed_free_magmas: Sequence[str | Path] = (),
     results_dir: str | Path | None = None,
     expert_kind: str = "z3",
     vampire_prove_time_limit: int = 10,
@@ -475,7 +501,7 @@ def run_magma_exploration(
         added = expert.add_magmas(load_magmas(path))
         print(f"Seeded the expert with {added} magmas from {path}.")
     reduced = []
-    if seed_context or etp_refutations:
+    if seed_context or etp_refutations or seed_free_magmas:
         # Each table once, evaluated on every equation, and the refutations of
         # the ETP graph, reduced to the objects whose rows the others do not
         # already account for.
@@ -489,11 +515,15 @@ def run_magma_exploration(
             tables = kept
         seeds = [PartialObject(m, *m.evaluate_all(equations)) for m in tables.values()]
         refutations = graph_refutations(equations, graph, laws) if etp_refutations else []
-        reduced = reduce_objects(seeds + refutations)
+        free = [o for path in seed_free_magmas for o in load_free_magmas(path, equations)]
+        reduced = reduce_objects(seeds + refutations + free)
         kept = sum(isinstance(o.object, EtpRefutation) for o in reduced)
+        kept_free = sum(isinstance(o.object, FreeMagma) for o in reduced)
+        if seed_free_magmas:
+            print(f"Seeded the context with {kept_free} of {len(free)} free magmas, the others being redundant.")
         if seed_context:
             print(
-                f"Seeded the context with {len(reduced) - kept} of {len(seeds)} magmas, "
+                f"Seeded the context with {len(reduced) - kept - kept_free} of {len(seeds)} magmas, "
                 f"the others being redundant."
             )
         if etp_refutations:
@@ -867,6 +897,22 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument(
+        "--seed-free-magmas",
+        type=Path,
+        nargs="+",
+        default=[],
+        metavar="PATH",
+        help=(
+            "Files of free magmas, such as the free_magmas.json of earlier "
+            "results: JSON lists of objects with a premise and the laws known "
+            "to hold (positive) and to fail (negative), given as for "
+            "--background; laws of a premise that are not among the equations "
+            "may be given by their text. Each is added to the context as an "
+            "object known on these laws only, before the exploration starts, "
+            "after dropping those whose rows the others account for."
+        ),
+    )
+    parser.add_argument(
         "--seed-context",
         type=Path,
         nargs="+",
@@ -978,7 +1024,7 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-SEED_OPTIONS = ("seed_magmas", "seed_context")
+SEED_OPTIONS = ("seed_magmas", "seed_context", "seed_free_magmas")
 
 
 def read_config(parser: argparse.ArgumentParser, path: Path) -> dict:
@@ -1091,6 +1137,7 @@ def main(argv: Sequence[str] | None = None) -> None:
                 background_transient_order=args.background_transient_order,
                 seed_magmas=args.seed_magmas,
                 seed_context=args.seed_context,
+                seed_free_magmas=args.seed_free_magmas,
                 results_dir=results_dir,
                 expert_kind=args.expert,
                 vampire_prove_time_limit=args.vampire_prove_time_limit,
