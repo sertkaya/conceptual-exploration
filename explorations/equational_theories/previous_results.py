@@ -13,7 +13,9 @@ equivalent to it, if there is one. OUTPUT_DIR then receives:
   that the context has the same closed sets as with all of them;
 - free_magmas.json, for --seed-free-magmas: the free magmas of the results and
   of the logs, known to satisfy the new laws that a law they satisfy implies,
-  and to violate those that imply a law they violate, by the ETP graph;
+  and to violate those that imply a law they violate, by the ETP graph; the
+  exploration identifies a free magma by its premise, so the entries with the
+  same premise are merged into one;
 - background.json, for --background: the implications that earlier
   explorations proved for all magmas (in --proofs results the sources
   confirmed and background; in logs whose expert is Vampire and that assume
@@ -229,27 +231,34 @@ def main(argv: Sequence[str] | None = None) -> None:
     print(f"{len(tables)} finite magmas with their duals, {len(rows)} distinct rows on the "
           f"{len(new)} laws, {len(kept)} of them not intersections of others: magmas.txt")
 
-    # Free magmas.
-    free, seen = [], set()
+    # Free magmas. The exploration identifies a free magma by its premise, so
+    # entries with the same premise, which are the same magma, are merged.
+    free: dict[tuple[str, ...], tuple[set, set]] = {}
     def add_free(premise, positive, negative) -> None:
         pos, neg = matcher.known(positive, negative)
-        key = (frozenset(e.id for e in pos), frozenset(e.id for e in neg))
-        if neg and key not in seen:
-            seen.add(key)
-            free.append({"premise": sorted(f"{eq.lhs} = {eq.rhs}" for eq in premise),
-                         "positive": sorted(e.id for e in pos), "negative": sorted(e.id for e in neg)})
+        key = tuple(sorted(f"{eq.lhs} = {eq.rhs}" for eq in premise))
+        known_pos, known_neg = free.setdefault(key, (set(), set()))
+        known_pos |= {e.id for e in pos}
+        known_neg |= {e.id for e in neg}
+        if known_pos & known_neg:
+            raise ValueError(f"The free magma over {key} would both satisfy and violate a law")
     for directory, equations in map(pair, args.results):
         if (directory / "free_magmas.json").exists():
             laws = _laws(equations)
             for m in json.loads((directory / "free_magmas.json").read_text(encoding="utf-8")):
-                add_free([laws[n] for n in m["premise"]], [laws[n] for n in m["positive"]],
-                         [laws[n] for n in m["negative"]])
+                premise = [laws[n] for n in m["premise"]]
+                if m.get("dual_of") and not set(m["premise"]) <= set(m["positive"]):
+                    # Results written before the fix give a dual its original's premise.
+                    premise = [eq.dual() for eq in premise]
+                add_free(premise, [laws[n] for n in m["positive"]], [laws[n] for n in m["negative"]])
     for log in logs:
         for premise, positive, negative in log.free_magmas():
             add_free(premise, positive, negative)
+    entries = [{"premise": list(key), "positive": sorted(pos), "negative": sorted(neg)}
+               for key, (pos, neg) in free.items() if neg]
     (args.output / "free_magmas.json").write_text(
-        "[\n" + ",\n".join("  " + json.dumps(f) for f in free) + "\n]\n", encoding="utf-8")
-    print(f"{len(free)} distinct free magmas known to violate one of the laws: free_magmas.json")
+        "[\n" + ",\n".join("  " + json.dumps(f) for f in entries) + "\n]\n", encoding="utf-8")
+    print(f"{len(entries)} free magmas with distinct premises known to violate one of the laws: free_magmas.json")
 
     # Proved implications, with their duals.
     proved: list[tuple[list[Equation], list[Equation]]] = []

@@ -319,11 +319,14 @@ def load_free_magmas(path: str | Path, equations: Sequence[Equation]) -> list[Pa
             return Equation.parse(name)
         raise ValueError(f"Law {name!r} of a premise in {path} is neither among the equations nor an equation")
 
-    return [
-        PartialObject(FreeMagma(frozenset(law(n) for n in e["premise"])),
-                      {by_ident[n] for n in e["positive"]}, {by_ident[n] for n in e["negative"]})
-        for e in entries
-    ]
+    # A free magma is identified by its premise: entries with the same premise
+    # are the same magma, known on what each of them knows.
+    known: dict[FreeMagma, tuple[set, set]] = {}
+    for e in entries:
+        positive, negative = known.setdefault(FreeMagma(frozenset(law(n) for n in e["premise"])), (set(), set()))
+        positive |= {by_ident[n] for n in e["positive"]}
+        negative |= {by_ident[n] for n in e["negative"]}
+    return [PartialObject(free, positive, negative) for free, (positive, negative) in known.items()]
 
 
 def run_magma_exploration(

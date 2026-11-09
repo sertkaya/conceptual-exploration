@@ -71,8 +71,13 @@ def test_magmas_free_magmas_and_proofs_are_carried_over_to_the_new_laws(data, tm
     results = tmp_path / "results"
     results.mkdir()
     (results / "magmas.json").write_text(json.dumps([{"name": "L", "size": 2, "table": LEFT_PROJECTION}]))
-    (results / "free_magmas.json").write_text(json.dumps(
-        [{"name": "F1", "dual_of": None, "premise": [10], "positive": [10], "negative": [11]}]))
+    (results / "free_magmas.json").write_text(json.dumps([
+        {"name": "F1", "dual_of": None, "premise": [11], "positive": [10, 11], "negative": [12, 13]},
+        # Earlier results give a dual its original's premise.
+        {"name": "F1^op", "dual_of": "F1", "premise": [11], "positive": [10, 12], "negative": [11, 13]},
+        # The same free magma, known on fewer laws.
+        {"name": "F2", "dual_of": None, "premise": [11], "positive": [10], "negative": [13]},
+    ]))
     (results / "implications.json").write_text(json.dumps([
         {"premise": [11], "conclusion": [10], "source": "confirmed"},
         {"premise": [10], "conclusion": [12], "source": "unconfirmed"},
@@ -85,9 +90,10 @@ def test_magmas_free_magmas_and_proofs_are_carried_over_to_the_new_laws(data, tm
     # The left projection and its dual, the right projection.
     tables = sorted(etp.load_tables(output / "magmas.txt"), key=lambda m: m.table)
     assert [m.table for m in tables] == [((0, 0), (1, 1)), ((0, 1), (0, 1))]
-    # The free magma satisfies x = x * x, hence x = x, and violates x = x * y, hence x = y.
+    # The free magma over x = x * y, merged with the entry of the same premise, and its dual.
     assert json.loads((output / "free_magmas.json").read_text()) == [
-        {"premise": ["a = (a * a)"], "positive": [1, 3], "negative": [2, 4]}]
+        {"premise": ["a = (a * b)"], "positive": [1, 3, 4], "negative": [2, 5]},
+        {"premise": ["a = (b * a)"], "positive": [1, 3, 5], "negative": [2, 4]}]
     # The confirmed implication and its dual, but neither the unconfirmed one nor its dual.
     background = json.loads((output / "background.json").read_text())
     assert sorted(map(json.dumps, background)) == sorted(map(json.dumps, [
@@ -131,3 +137,12 @@ def test_free_magmas_are_read_as_objects_known_on_their_laws(tmp_path):
     path.write_text(json.dumps([{"premise": [], "positive": [7], "negative": []}]))
     with pytest.raises(ValueError, match="not among the equations"):
         load_free_magmas(path, equations)
+
+
+def test_free_magmas_with_the_same_premise_are_one_object(tmp_path):
+    equations = [Equation.parse(s, id=k) for k, s in [(1, "x = x"), (3, "x = x * x"), (4, "x = x * y")]]
+    path = tmp_path / "free.json"
+    path.write_text(json.dumps([{"premise": [3], "positive": [3], "negative": []},
+                                {"premise": [3], "positive": [1], "negative": [4]}]))
+    (free,) = load_free_magmas(path, equations)
+    assert free.positive == {equations[0], equations[1]} and free.negative == {equations[2]}
