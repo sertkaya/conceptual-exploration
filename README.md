@@ -21,6 +21,7 @@
   - [2. First-Order Rule Exploration](#2-first-order-rule-exploration)
   - [3. Loading Formal Contexts from `.cxt` Files](#3-loading-formal-contexts-from-cxt-files)
 - [Symmetries & Background Knowledge](#symmetries--background-knowledge)
+- [Explaining Implications](#explaining-implications)
 - [Explorations & Examples](#explorations--examples)
 - [Testing](#testing)
 - [License](#license)
@@ -36,6 +37,7 @@
 - **Partial Formal Contexts**: First-class handling of three-valued logic (positive, negative, and unknown attribute values) via `PartialContext` and `PartialObject`.
 - **Burmeister `.cxt` Format Support**: Read and parse standard Formal Concept Analysis context files.
 - **Implication Theory Management**: Simplification of implication premises, entailment checks, semantic closure computations, and source tracking (confirmed, unconfirmed, background, mapped, mapped unconfirmed).
+- **Explanations**: For an implication that follows from a set of implications, a minimal subset that entails it and a step-by-step derivation from that subset.
 
 ---
 
@@ -311,6 +313,33 @@ base = ExplorationBase(
 For first-order rule exploration, variable symmetries (permutations and non-injective variable substitutions) are configured automatically via `substitutions=True` in `RuleExploration`.
 
 A binary predicate can declare itself `symmetric`, `reflexive` or `irreflexive`, and name its `complement`. `RuleExploration` then keeps one atom of each symmetric pair, drops atoms whose truth is fixed, such as `P(x, x)` for a reflexive `P`, and adds `{P(a), Q(a)} -> ⊥` for complementary predicates.
+
+---
+
+## Explaining Implications
+
+When an implication `P -> Q` follows from a set `L` of implications, `explain(P, Q, L)` in `conceptual_exploration.algorithms.explanation` says why: it returns a **minimal** subset `K` of `L` that entails `P -> Q`, and a **derivation** of `P -> Q` from `K`, a sequence of steps each applying one implication of `K` whose premise is already known. It returns `None` if `L` does not entail `P -> Q`.
+
+```python
+from conceptual_exploration import Implication
+from conceptual_exploration.algorithms.explanation import explain
+
+L = [Implication("a", "b"), Implication("a", "e"), Implication("b", "d"), Implication("e", "cd")]
+for step in explain("a", "cd", L).steps:
+    print(step.implication, "gives", sorted(step.derived))
+# a -> e gives ['e']
+# e -> c, d gives ['c', 'd']
+```
+
+The idea, in three steps, all in polynomial time:
+
+1. **Forward chaining with provenance.** The closure of `P` under `L` is computed as usual, but each attribute added records the step that added it. As in the LinClosure algorithm of Beeri and Bernstein, each implication keeps a counter of its premise attributes not yet known, and fires when the counter reaches zero, so the closure takes time linear in the size of `L`. Implications fire first in, first out, so that what needs fewer steps is derived first.
+2. **Going backwards from `Q`.** From the attributes of `Q`, the records lead back to the steps they need, then to the steps the premises of those need, and so on. These steps, in their order, are a derivation of `P -> Q` (a derivation DAG in the sense of Maier's *Theory of Relational Databases*), and their implications a subset of `L` that entails it.
+3. **Deleting what is not needed.** That subset need not be minimal: an attribute may have been derived on a route the rest does not need, as `d` by `a -> b` and `b -> d` in the example above, before `e -> c, d` fired. Each implication of the subset is therefore deleted in turn, the last steps first, and kept out if `P -> Q` still follows. Since entailment is monotone, the result is minimal: no implication can be removed from it. Deriving `P -> Q` once more from it gives the derivation returned.
+
+The subset is minimal, not of minimum size: finding a smallest one is NP-hard, and there can be exponentially many minimal ones (Baader, Peñaloza and Suntisrivaraporn, *Pinpointing in the description logic EL+*, 2007; Peñaloza and Sertkaya, *On the complexity of axiom pinpointing in the EL family of description logics*, 2010). Which one is found depends on the order of deletion. The problem is known as *axiom pinpointing* or finding *justifications* in description logics, and as finding *minimal unsatisfiable subsets* for Horn formulas in SAT; derivations that are small or shallow are the subject of work on *good proofs* (Alrabbaa, Baader, Borgwardt, Koopmann and Kovtunova, 2020–2021).
+
+`explorations/equational_theories/explain.py` applies this to the implications an exploration accepted, and prints each step with the source of its implication.
 
 ---
 
