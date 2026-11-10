@@ -92,6 +92,12 @@ python explorations/equational_theories/explore.py --equations explorations/equa
 
 The rules found for the laws of order at most two are proved in Lean in [`lean/`](lean/README.md). `completion.py RESULTS_DIR --equations FILE` certifies the negative entries of an exploration's free magmas, which rest on Vampire's saturation, by Knuth–Bendix completion: a terminating, confluent rewrite system that entails the premise and separates the two sides of a law shows that the premise does not imply it.
 
+`explain.py RESULTS_DIR --equations FILE --premise N ... --conclusion N ...` explains why an implication follows from the implications an exploration accepted: it finds a minimal set of them that entails it and derives it step by step, each step applying one of them, with its source (`conceptual_exploration.algorithms.explanation`). Only the implications that hold are used, unless `--unconfirmed` is given. For example, Eq127 and Eq310 together imply Eq387, though neither does alone, by 10 of the 1645 implications of the fourth order-3 exploration:
+
+```bash
+python explorations/equational_theories/explain.py explorations/equational_theories/results/order3_vampire_mace4_etp_refutations_duals_asked --equations explorations/equational_theories/equations_order3.json --premise 127 310 --conclusion 387
+```
+
 Magmas found earlier, such as the `magmas.json` of saved results, can be reused. Files of the ETP with one table per line, such as those in its `equational_theories/Generated/All4x4Tables/data`, are read as well. `--seed-magmas PATH...` adds them to the expert's pool, which is checked for a counterexample before the solver searches. `--seed-context PATH...` instead evaluates them on every equation and adds them to the context before the exploration starts, dropping those whose rows the others account for, so that no question they refute is asked. `--background PATH...` adds the implications of files in the format of `implications.json` to the background:
 
 ```bash
