@@ -55,6 +55,7 @@ from explorations.equational_theories.etp import (
     EtpLaws, EtpRefutation, ImplicationGraph, graph_background, graph_refutations, load_magmas,
 )
 from explorations.equational_theories.magma import ETP, Equation, Magma, MagmaExpert
+from explorations.equational_theories.excluded import ExcludingExpert, excluded_background, outside
 from explorations.equational_theories.vampire import FreeMagma, VampireExpert
 
 
@@ -361,6 +362,7 @@ def run_magma_exploration(
     axioms: Sequence[int | str] = (),
     background_files: Sequence[str | Path] = (),
     undecided: str = "accept",
+    excluded: Sequence[int | str] = (),
 ):
     if (etp_graph is None) != (etp_equations is None):
         raise ValueError("The ETP graph needs the ETP's equations, and vice versa")
@@ -461,6 +463,21 @@ def run_magma_exploration(
             raise ValueError(f"Axioms not among the equations: {sorted(map(str, missing))}")
         background.append(Implication([], assumed))
         print(f"\nAssumed in Every Object:  {', '.join(eq.name or str(eq) for eq in assumed)}")
+    outside_of: list[Equation] = []
+    if excluded:
+        # Laws whose varieties are left out: see excluded.py.
+        ident = lambda eq: eq.id if eq.id is not None else eq.name or f"{eq.lhs} = {eq.rhs}"
+        wanted = {int(a) if str(a).isdigit() else a for a in excluded}
+        outside_of = [eq for eq in equations if ident(eq) in wanted]
+        missing = wanted - {ident(eq) for eq in outside_of}
+        if missing:
+            raise ValueError(f"Excluded laws not among the equations: {sorted(map(str, missing))}")
+        if use_duality_symmetry:
+            dual = ETP.get_duality_mapping(equations)
+            if any(dual(eq) not in outside_of for eq in outside_of):
+                raise ValueError("The excluded laws must contain the duals of their laws")
+        print(f"\nExcluded Varieties:       {', '.join(eq.name or str(eq) for eq in outside_of)}"
+              f" (every law follows from each of them)")
 
     # Set up duality mapping if symmetry is enabled; in semigroups, laws are
     # compared up to associativity.
@@ -521,7 +538,12 @@ def run_magma_exploration(
             tables = kept
         seeds = [PartialObject(m, *m.evaluate_all(equations)) for m in tables.values()]
         refutations = graph_refutations(equations, graph, laws) if etp_refutations else []
-        reduced = reduce_objects(seeds + refutations)
+        objects = seeds + refutations
+        if outside_of:
+            objects = outside(objects, outside_of)
+            print(f"Dropped {len(seeds) + len(refutations) - len(objects)} of the objects to seed, "
+                  f"which are not known to violate the excluded laws.")
+        reduced = reduce_objects(objects)
         kept = sum(isinstance(o.object, EtpRefutation) for o in reduced)
         if seed_context:
             print(
@@ -542,10 +564,13 @@ def run_magma_exploration(
               f"resuming at its premise.")
 
     print("\nStarting Attribute Exploration...")
+    # The expert answers for all magmas; only the exploration takes the
+    # excluded laws to imply everything.
+    excluding = ExcludingExpert(expert, outside_of) if outside_of else None
     result = explore_in_rounds(
         equations,
-        expert,
-        background_implications=background,
+        excluding or expert,
+        background_implications=background + excluded_background(equations, outside_of),
         mappings=mappings,
         objects=reduced,
         evaluate_all=True,
@@ -577,6 +602,9 @@ def run_magma_exploration(
     if isinstance(expert, (VampireExpert, CompletionExpert)):
         answers = ", ".join(f"{kind} {count}" for kind, count in expert.answers.most_common())
         print(f"Expert Answers:               {answers}")
+    if excluding is not None:
+        answers = ", ".join(f"{kind} {count}" for kind, count in sorted(excluding.answers.items())) or "none"
+        print(f"Answers about Excluded Laws:  {answers}")
 
     # Display the implications found, simplified for reading
     found = simplified_implications(base)
@@ -972,6 +1000,19 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument(
+        "--exclude",
+        nargs="+",
+        default=[],
+        metavar="LAW",
+        help=(
+            "Laws, by id or name, whose varieties are left out, such as 255 47: "
+            "each is taken to imply every law, so that no question about the "
+            "magmas satisfying one is asked, and the implications found are "
+            "exactly those whose premise implies none of them. The laws must "
+            "contain the duals of their laws. See excluded.py."
+        ),
+    )
+    parser.add_argument(
         "--no-duality",
         action="store_true",
         help="Do not use the duality symmetry, so that the equations need not be closed under duality.",
@@ -1165,6 +1206,7 @@ def main(argv: Sequence[str] | None = None) -> None:
                 etp_refutations=args.etp_refutations,
                 map_unconfirmed=not args.ask_unconfirmed_duals,
                 axioms=args.axiom,
+                excluded=args.exclude,
                 background_files=args.background,
                 undecided=args.undecided,
             )
