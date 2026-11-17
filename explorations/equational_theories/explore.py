@@ -487,7 +487,11 @@ def run_magma_exploration(
         raise ValueError("Truncated free semigroups need associativity among the axioms")
     mappings = []
     if use_duality_symmetry:
-        mappings.append(ETP.get_duality_mapping(equations, associative=associative))
+        mapping = ETP.get_duality_mapping(equations, associative=associative)
+        # An axiom whose dual does not hold would map to a false implication.
+        if any(mapping(eq) not in assumed for eq in assumed):
+            raise ValueError("The duals of the axioms are not all axioms: use --no-duality")
+        mappings.append(mapping)
 
     def vampire_expert() -> VampireExpert:
         return VampireExpert(
@@ -538,6 +542,13 @@ def run_magma_exploration(
             tables = kept
         seeds = [PartialObject(m, *m.evaluate_all(equations)) for m in tables.values()]
         refutations = graph_refutations(equations, graph, laws) if etp_refutations else []
+        if assumed and refutations:
+            # A refutation stands for the free magma over its premise law,
+            # which satisfies the axioms only if that law implies them.
+            satisfying = [o for o in refutations if set(assumed) <= set(o.positive)]
+            print(f"Dropped {len(refutations) - len(satisfying)} of the {len(refutations)} refutations "
+                  f"of the ETP graph, whose premise does not imply the axioms.")
+            refutations = satisfying
         objects = seeds + refutations
         if outside_of:
             objects = outside(objects, outside_of)

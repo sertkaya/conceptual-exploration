@@ -113,3 +113,25 @@ def test_the_exploration_finds_the_closed_sets_outside_the_excluded_varieties(tm
     expected = {s for s in closed_sets(full.implications, attributes) if not s & excluded}
     expected.add(frozenset(attributes))
     assert closed_sets(part.implications, attributes) == expected
+
+
+def test_an_axiom_without_its_dual_needs_the_duality_off(tmp_path):
+    path = tmp_path / "laws.json"
+    path.write_text(json.dumps([{"id": k, "equation": e} for k, e in enumerate(LAWS, start=1)]))
+    with pytest.raises(ValueError, match="no-duality"):
+        run_magma_exploration(equations_path=path, axioms=[5], report_interval=1000)
+
+
+@pytest.mark.skipif(shutil.which("vampire") is None, reason="Vampire not installed")
+def test_the_variety_of_an_axiom_has_the_closed_sets_that_contain_it(tmp_path):
+    # Part B of an exclusion: with Eq5 as an axiom, the closed sets are those
+    # of all magmas that contain it.
+    path = tmp_path / "laws.json"
+    path.write_text(json.dumps([{"id": k, "equation": e} for k, e in enumerate(LAWS, start=1)]))
+    _, full = run_magma_exploration(equations_path=path, expert_kind="vampire", report_interval=1000)
+    _, inside = run_magma_exploration(equations_path=path, expert_kind="vampire", report_interval=1000,
+                                      axioms=[5], use_duality_symmetry=False)
+    attributes = list(full.attributes)
+    axiom = next(eq for eq in attributes if eq.id == 5)
+    expected = {s for s in closed_sets(full.implications, attributes) if axiom in s}
+    assert closed_sets(inside.implications, attributes) == expected
