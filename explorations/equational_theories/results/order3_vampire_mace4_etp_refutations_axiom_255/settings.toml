@@ -1,0 +1,34 @@
+# The options of an exploration, for explore.py --config; paths are
+# relative to the directory explore.py was run from.
+# conceptual-exploration commit 5467ca011b082c9f6364dc508244d9bdae7fe86d; ETP data of commit 1aec8a7acf223b7c56e4830977b6e90d4ef1924b (etp_version.json).
+
+equations = "explorations/equational_theories/equations_order3.json"
+expert = "vampire"
+vampire-prove-time-limit = 10
+# vampire-first-time-limit not set
+vampire-model-time-limit = 10
+vampire-quick-model-time-limit = 1
+vampire-row-time-limit = 1
+mace4-time-limit = 30
+model-premise = "full"
+truncation-words = 0
+prover9-time-limit = 0
+eprover-time-limit = 0
+min-search-size = 1
+max-search-size = 6
+z3-timeout-ms = 30000
+report-every = 1
+# background-order not set
+background-premise-size = 2
+seed-magmas = []
+seed-context = ["../etp/magmas/cancellative-manual.txt", "../etp/magmas/extra.txt", "../etp/magmas/manual-11x11.txt", "../etp/magmas/manual-13x13.txt", "../etp/magmas/manual-5x5.txt", "../etp/magmas/plan.txt", "../etp/magmas/refutations2x2.txt", "../etp/magmas/refutations3x3.txt", "../etp/magmas/refutations4x4.txt", "../etp/magmas/smallest_magma_examples.txt", "../etp/magmas/vampire-generated.txt", "../etp/magmas/z3-generated.txt", "../runs/special_magmas.txt"]
+background = []
+# background-transient-order not set
+etp-graph = "../etp/graph.json"
+axiom = ["255"]
+exclude = []
+no-duality = true
+undecided = "accept"
+ask-unconfirmed-duals = false
+etp-refutations = true
+etp-equations = "../etp/equations.txt"
